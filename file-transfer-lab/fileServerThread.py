@@ -25,8 +25,12 @@ lsock.bind(bindAddr)
 lsock.listen(5)
 print("listening on:", bindAddr)
 
-from threading import Thread;
+from threading import Thread, Lock
 from encapFramedSock import EncapFramedSock
+
+global lock
+lock = Lock()
+
 
 class Server(Thread):
     def __init__(self, sockAddr):
@@ -34,16 +38,19 @@ class Server(Thread):
         self.sock, self.addr = sockAddr
         self.fsock = EncapFramedSock(sockAddr)
     def run(self):
+        global lock
         print("new thread handling connection from", self.addr)
         while True:
             try:
                 filename = self.fsock.receive(debug)
                 print("checking server for : ", filename.decode())
+                lock.acquire()
                 sentfile = filename.decode()
                 sentfile = "receive_"+sentfile
                 print(sentfile)
                 if exists(sentfile):
                     self.fsock.send(b"True",debug)
+                    lock.release()
 
                 else:
                     self.fsock.send(b"False", debug)
@@ -52,6 +59,7 @@ class Server(Thread):
                     outfile.write(filename)
                     outfile.write(payload)
                     self.fsock.send(b"wrote new file",debug)
+                    lock.release()
                     outfile.close()
             except:
                 print("Connection to the client lost.")
@@ -61,3 +69,4 @@ while True:
     sockAddr = lsock.accept()
     server = Server(sockAddr)
     server.start()
+
